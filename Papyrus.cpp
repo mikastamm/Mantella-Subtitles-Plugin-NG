@@ -1,7 +1,8 @@
 #include "Papyrus.h"
+
 #include "InjectTopic.h"
 
-//using namespace Sample;
+// using namespace Sample;
 using namespace RE;
 using namespace RE::BSScript;
 using namespace REL;
@@ -23,7 +24,16 @@ namespace MantellaSubtitles {
     // are std::string, std::string_view, or Skyrim's RE::BSFixedString (a case-preserving but case-insensitive interned
     // string), and the primitive types are converted to <code>bool</code>, <code>int</code>, and <code>float</code>.
 
-    bool SetInjectTopicAndSubtitleForSpeakerPapyrus(RE::StaticFunctionTag*, RE::Actor* speaker, RE::TESTopic* topic, RE::BSString subtitle) { 
+    bool SetInjectTopicAndSubtitleForSpeakerPapyrus(RE::StaticFunctionTag*, RE::Actor* speaker, RE::TESTopic* topic,
+                                                    RE::BSString subtitle) {
+        if (!speaker) {
+            SKSE::log::error("SetInjectTopicAndSubtitleForSpeakerPapyrus: speaker is null");
+            return false;
+        }
+        if (!topic) {
+            SKSE::log::error("SetInjectTopicAndSubtitleForSpeakerPapyrus: topic is null, Speaker: {}", speaker->GetName());
+            return false;
+        }
         SKSE::log::debug("Set inject for topic {:x} with subtitle \"{}\"", topic->GetFormID(), subtitle);
         injectSpeaker = speaker;
         injectTopic = topic;
@@ -36,8 +46,17 @@ namespace MantellaSubtitles {
     // cases where we're adding "overriding" subtitles for someone who is
     // already speaking.
     bool AddSubtitleForSpeaker(RE::Actor* speaker, RE::BSString subtitle, int32_t ms_to_show) {
+        if (!speaker) {
+            SKSE::log::error("AddSubtitleForSpeaker: speaker is null");
+            return false;
+        }
+
         SKSE::log::debug("Injecting subtitle for speaker {:x} with subtitle \"{}\"", speaker->GetFormID(), subtitle);
         auto* subtitleManager = RE::SubtitleManager::GetSingleton();
+        if (!subtitleManager) {
+            SKSE::log::error("AddSubtitleForSpeaker: subtitleManager is null");
+            return false;
+        }
 
         // I assume this lock is for contention over the subtitle manager, but
         // who knows
@@ -79,6 +98,10 @@ namespace MantellaSubtitles {
                 // it's probably fine to keep the pointer from the outside scope
                 // but just in case
                 auto* subtitleManager = RE::SubtitleManager::GetSingleton();
+                if (!subtitleManager) {
+                    SKSE::log::error("AddSubtitleForSpeaker lambda: subtitleManager is null");
+                    return;
+                }
                 RE::SubtitleInfo* to_del = NULL;
 
                 subtitleManager->lock.Lock();
@@ -112,10 +135,15 @@ namespace MantellaSubtitles {
      * success.
      */
     bool RegisterFns(IVirtualMachine* vm) {
-        vm->RegisterFunction("SetInjectTopicAndSubtitleForSpeaker", PapyrusClass, SetInjectTopicAndSubtitleForSpeakerPapyrus);
+        if (!vm) {
+            SKSE::log::error("RegisterFns: vm is null");
+            return false;
+        }
+
+        vm->RegisterFunction("SetInjectTopicAndSubtitleForSpeaker", PapyrusClass,
+                             SetInjectTopicAndSubtitleForSpeakerPapyrus);
         vm->RegisterFunction("AddTopicAndSubtitleForSpeaker", PapyrusClass, AddSubtitleForSpeakerPapyrus);
 
         return true;
     }
 }
-

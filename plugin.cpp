@@ -1,10 +1,9 @@
-#include <stddef.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/msvc_sink.h>
+#include <stddef.h>
 
-#include "Papyrus.h"
 #include "InjectTopic.h"
-
+#include "Papyrus.h"
 
 void InitializeLogging() {
     auto path = SKSE::log::log_directory();
@@ -66,30 +65,36 @@ public:
 
     RE::BSEventNotifyControl ProcessEvent(const RE::TESTopicInfoEvent* event,
                                           RE::BSTEventSource<RE::TESTopicInfoEvent>*) {
+        if (!event) {
+            SKSE::log::error("Received null event in ProcessEvent");
+            return RE::BSEventNotifyControl::kContinue;
+        }
         // topicInfoId is the third item in the struct, after two pointers.
         // Unfortunately we have to do it this way because commonlibsse-ng
         // doesn't seem to know the layout of this struct.
-        RE::FormID eventTopicInfoId = *(RE::FormID*)((void**)event + 2 );
+        RE::FormID eventTopicInfoId = *(RE::FormID*)((void**)event + 2);
 
         SKSE::log::debug("Received event, topic info ID is {:x}", eventTopicInfoId);
 
-        if (injectSpeaker != NULL && InjectTopicContainsInfoId(eventTopicInfoId)) {
+        if (injectSpeaker != NULL && injectSubtitle != NULL && InjectTopicContainsInfoId(eventTopicInfoId))
             MantellaSubtitles::AddSubtitleForSpeaker(injectSpeaker, injectSubtitle, -1);
-        } else {
+        else
             SKSE::log::debug("Didn't inject subtitle");
-        }
         return RE::BSEventNotifyControl::kContinue;
     }
-
 };
 
 void InitializePapyrus() {
     SKSE::log::debug("Initializing Papyrus binding...");
-    if (SKSE::GetPapyrusInterface()->Register(MantellaSubtitles::RegisterFns)) {
-        SKSE::log::debug("Papyrus functions bound.");
-    } else {
-        SKSE::stl::report_and_fail("Failure to register Papyrus bindings.");
+    auto papyrusInterface = SKSE::GetPapyrusInterface();
+    if (!papyrusInterface) {
+        SKSE::log::error("Papyrus interface is null in InitializePapyrus");
+        SKSE::stl::report_and_fail("Papyrus interface is null.");
     }
+    if (papyrusInterface->Register(MantellaSubtitles::RegisterFns))
+        SKSE::log::debug("Papyrus functions bound.");
+    else
+        SKSE::stl::report_and_fail("Failure to register Papyrus bindings.");
 }
 
 void InitializeEventHandlers() {
@@ -97,16 +102,28 @@ void InitializeEventHandlers() {
 
     // ScriptSource
     auto* eventSourceHolder = RE::ScriptEventSourceHolder::GetSingleton();
+    if (!eventSourceHolder) {
+        SKSE::log::error("ScriptEventSourceHolder singleton is null in InitializeEventHandlers");
+        return;
+    }
     eventSourceHolder->AddEventSink<RE::TESTopicInfoEvent>(eventSink);
 
-    //auto* skyrimVmSource = RE::SkyrimVM::GetSingleton();
-    //skyrimVmSource->AddEventSink<RE::TESTopicInfoEvent>(eventSink);
+    // auto* skyrimVmSource = RE::SkyrimVM::GetSingleton();
+    // skyrimVmSource->AddEventSink<RE::TESTopicInfoEvent>(eventSink);
 }
 
-SKSEPluginLoad(const SKSE::LoadInterface *skse) {
+SKSEPluginLoad(const SKSE::LoadInterface* skse) {
+    if (!skse) {
+        SKSE::log::error("skse pointer is null in SKSEPluginLoad");
+        SKSE::stl::report_and_fail("skse pointer is null.");
+    }
     InitializeLogging();
 
     auto* plugin = SKSE::PluginDeclaration::GetSingleton();
+    if (!plugin) {
+        SKSE::log::error("PluginDeclaration singleton is null in SKSEPluginLoad");
+        SKSE::stl::report_and_fail("PluginDeclaration singleton is null.");
+    }
     auto version = plugin->GetVersion();
     SKSE::log::info("{} {} is loading...", plugin->GetName(), version);
 
